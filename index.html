@@ -3,11 +3,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <title>13ft Ladder</title>
-
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Open+Sans&display=swap" rel="stylesheet">
-
     <style>
         div.centered {
             position: absolute;
@@ -16,14 +14,12 @@
             -webkit-transform: translate(-50%, -50%);
             transform: translate(-50%, -50%);
         }
-
         h1{
             font-family: 'Product Sans', 'Open Sans', sans-serif;
             text-rendering: optimizeLegibility;
             margin: 0;
             text-align: center;
         }
-
         input[type=text] {
             padding: 10px;
             margin-bottom: 10px;
@@ -35,12 +31,10 @@
             font-size: inherit;
             text-rendering: optimizeLegibility;
         }
-
         input[type="submit"] {
             /* remove default behavior */
             -webkit-appearance:none;
             appearance:none;
-
             /* usual styles */
             padding:10px;
             border:none;
@@ -54,9 +48,11 @@
             font-size: 1rem;
             text-rendering: optimizeLegibility;
         }
+        input[type="submit"]:active {
+            scale: 1.02;
+        }
     </style>
 </head>
-
 <body>
     <div class="centered">
         <form action="/article" method="post">
@@ -69,9 +65,6 @@
                 type="text"
                 name="link"
                 required
-                pattern="https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)"
-                oninvalid="this.setCustomValidity('Invalid Link')"
-                oninput="this.setCustomValidity('')"
             >
             <input type="submit" value="submit">
         </form>
