@@ -93,6 +93,7 @@ def bypass_paywall(url):
     Bypass paywall for a given url
     """
     response = requests.get(url, headers=googlebot_headers)
+    response.encoding = response.apparent_encoding
     return response.text
 
 
