@@ -95,7 +95,6 @@ def bypass_paywall(url):
     """
     response = requests.get(url, headers=googlebot_headers)
     response.encoding = response.apparent_encoding
-#    response.encoding = 'UTF-8'
     return response.text
 
 
@@ -115,10 +114,10 @@ def get_article(path):
     full_url = request.url
     parts = full_url.split('/',4)
     if len(parts) >= 5:
-        actual_url = 'https://' + parts[4]
+        actual_url = 'https://' + parts[4].lstrip('/')
         return bypass_paywall(actual_url)
     else:
         return "invalid url", 400
 
 
-app.run(debug=True)
+app.run(debug=False)
