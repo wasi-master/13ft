@@ -1,5 +1,6 @@
 import flask
 import requests
+from flask import request
 
 app = flask.Flask(__name__)
 googlebot_headers = {
@@ -12,6 +13,7 @@ def bypass_paywall(url):
     Bypass paywall for a given url
     """
     response = requests.get(url, headers=googlebot_headers)
+    response.encoding = response.apparent_encoding
     return response.text
 
 
@@ -25,5 +27,17 @@ def show_article():
     link = flask.request.form["link"]
     return bypass_paywall(link)
 
+@app.route("/", defaults={"path": ""})
+@app.route('/<path:path>', methods=["GET"])
+def get_article(path):
+    print(path)
+    full_url = request.url
+    parts = full_url.split('/',4)
+    if len(parts) >= 5:
+        actual_url = 'https://' + parts[4].lstrip('/')
+        print(actual_url)
+        return bypass_paywall(actual_url)
+    else:
+        return "invalid url", 400
 
-app.run(debug=True)
+app.run(debug=False)
