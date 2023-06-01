@@ -1,6 +1,6 @@
 # 13 Feet Ladder
 
-A site similar to [12ft.io](https://12ft.io) but is self hosted and is more smooth
+A site similar to [12ft.io](https://12ft.io) but is self hosted and works with websites that 12ft.io doesn't work with.
 
 ## What is this?
 
@@ -20,7 +20,7 @@ python -m pip install flask
 
 If that doesn't work retry but replace `python` with `py`, then try `python3`, then try `py3`
 
-Then download the file and run it, click [this link](https://realpython.com/run-python-scripts/) for a tutorial on how to run python scripts
+Then download the file `portable.py` and run it, click [this link](https://realpython.com/run-python-scripts/) for a tutorial on how to run python scripts
 
 Then follow these simple steps
 
@@ -43,3 +43,9 @@ Paste your desired url
 
 ![step 4 screenshot](screenshots/step-4.gif)
 Voilà you now have bypassed the paywall and ads
+
+### Alternative method
+
+You can also append the url at the end of the link and it will also work. (e.g if your server is running at `http://127.0.0.1:5000` then you can go to `http://127.0.0.1:5000/https://example.com` and it will read out the contents of `https://example.com`)
+
+This feature is possible thanks to [atcasanova](https://github.com/atcasanova)
