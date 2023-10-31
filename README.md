@@ -12,15 +12,38 @@ It pretends to be GoogleBot (Google's web crawler) and gets the same content tha
 
 ## How do I use it?
 
-First make sure you have [python](https://python.org) installed on your machine, then go to a terminal (`Command Prompt` on Windows, `Terminal` on Mac) and run the following command:
+### Using Docker
+
+Requirements:
+- docker
+- docker-compose
+
+First, clone the repo to your machine, then run the following commands:
 
 ```sh
-python -m pip install flask
+git clone https://github.com/wasi-master/13ft.git
+cd 13ft
+docker-compose up
+```
+
+### Standard Python script
+
+First, make sure you have [python](https://python.org) installed on your machine. Next, clone the git repo. Then go to a terminal (`Command Prompt` on Windows, `Terminal` on Mac) and run the following command:
+
+From the git cloned directory on your computer:
+
+```sh
+cd app/
+python -m pip install -r requirements.txt
 ```
 
 If that doesn't work retry but replace `python` with `py`, then try `python3`, then try `py3`
 
-Then download the file `portable.py` and run it, click [this link](https://realpython.com/run-python-scripts/) for a tutorial on how to run python scripts
+Then run `portable.py`, click [this link](https://realpython.com/run-python-scripts/) for a tutorial on how to run python scripts.
+
+```sh
+python portable.py
+```
 
 Then follow these simple steps
 
