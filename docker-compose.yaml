@@ -1,0 +1,7 @@
+version: '3'
+services:
+  13ft:
+    build: .
+    #image: your-image-name:tag
+    ports:
+      - "5000:5000"
