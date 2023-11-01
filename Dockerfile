@@ -18,9 +18,9 @@ LABEL org.opencontainers.image.description="My own custom 12ft.io replacement"
 LABEL org.opencontainers.image.documentation="https://github.com/wasi-master/13ft/blob/main/README.md"
 LABEL org.opencontainers.image.licenses=MIT
 
-COPY /app /app
-WORKDIR /app
+COPY . .
 RUN pip install -r requirements.txt
+WORKDIR /app
 EXPOSE 5000
 ENTRYPOINT [ "python" ]
 CMD [ "portable.py" ] 
