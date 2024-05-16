@@ -1,3 +1,4 @@
+import os
 import flask
 import requests
 from flask import request
@@ -129,5 +130,7 @@ def get_article(path):
     else:
         return "Invalid URL", 400
 
-
-app.run(host='0.0.0.0', port=5000, debug=False)
+port = os.getenv("PORT")
+if port is None:
+    port = 5000
+app.run(host='0.0.0.0', port=port, debug=False)
