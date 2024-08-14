@@ -7,84 +7,80 @@ googlebot_headers = {
     "User-Agent": "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/W.X.Y.Z Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
 }
 html = """
+<!DOCTYPE html>
 <html lang="en">
+<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <title>13ft Ladder</title>
-
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Open+Sans&display=swap" rel="stylesheet">
-
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans&display=swap" rel="stylesheet" async>
     <style>
-        div.centered {
-            position: absolute;
-            left: 50%;
-            top: 50%;
-            -webkit-transform: translate(-50%, -50%);
-            transform: translate(-50%, -50%);
-        }
-
-        h1{
-            font-family: 'Product Sans', 'Open Sans', sans-serif;
-            text-rendering: optimizeLegibility;
+        body {
+            font-family: 'Open Sans', sans-serif;
+            background-color: #FFF;
             margin: 0;
-            text-align: center;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 90vh;
         }
-
+        
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            text-align: center;
+            color: #333;
+        }
+        label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
         input[type=text] {
             padding: 10px;
             margin-bottom: 10px;
-            border: 0;
-            box-shadow: 0 0 15px 4px rgba(0,0,0,0.3);
-            border-radius: 10px;
-            width:100%;
-            font-family: 'Product Sans', 'Open Sans', sans-serif;
-            font-size: inherit;
-            text-rendering: optimizeLegibility;
-        }
-
-        input[type="submit"] {
-            /* remove default behavior */
-            -webkit-appearance:none;
-            appearance:none;
-
-            /* usual styles */
-            padding:10px;
-            border:none;
-            background-color:#6a0dad;
-            color:#fff;
-            font-weight:600;
-            border-radius:5px;
-            width:100%;
-            text-transform: uppercase;
-            font-family: 'Product Sans', 'Open Sans', sans-serif;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            width: 100%;
             font-size: 1rem;
-            text-rendering: optimizeLegibility;
+            box-sizing: border-box;
         }
-        input[type="submit"]:active {
-            scale: 1.02;
+        input[type="submit"] {
+            padding: 10px;
+            background-color: #6a0dad;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            width: 100%;
+            text-transform: uppercase;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        input[type="submit"]:hover {
+            background-color: #4e0875;
+        }
+
+        /* Responsive adjustments */
+        @media only screen and (max-width: 600px) {
+            form {
+                padding: 10px;
+            }
+            h1 {
+                font-size: 1.2rem;
+            }
         }
     </style>
 </head>
-
 <body>
-    <div class="centered">
-        <form action="/article" method="post">
-            <h1>
-                <label for="link">Enter Website Link</label>
-            </h1>
-            <br>
-            <input
-                title="Link of the website you want to remove paywall for"
-                type="text"
-                name="link"
-                required
-            >
-            <input type="submit" value="submit">
-        </form>
-    </div>
+    <form action="/article" method="post">
+        <h1>Enter Website Link</h1>
+        <label for="link">Link of the website you want to remove paywall for:</label>
+        <input type="text" id="link" name="link" required>
+        <input type="submit" value="Submit">
+    </form>
 </body>
 </html>
 """
