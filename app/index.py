@@ -58,19 +58,17 @@ def show_article():
         return bypass_paywall(link)
     except requests.exceptions.RequestException as e:
         return str(e), 400
-    except e:
-        raise e
+    except Exception as exc:
+        raise exc
 
 
 @app.route("/", defaults={"path": ""})
 @app.route("/<path:path>", methods=["GET"])
 def get_article(path):
-    print(path)
     full_url = request.url
     parts = full_url.split("/", 4)
     if len(parts) >= 5:
         actual_url = "https://" + parts[4].lstrip("/")
-        print(actual_url)
         try:
             return bypass_paywall(actual_url)
         except requests.exceptions.RequestException as e:
