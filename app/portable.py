@@ -1,6 +1,8 @@
 import flask
 import requests
 from flask import request
+from bs4 import BeautifulSoup
+from urllib.parse import urlparse, urljoin
 
 app = flask.Flask(__name__)
 googlebot_headers = {
@@ -185,14 +187,41 @@ html = """
 </html>
 """
 
+def add_base_tag(html_content, original_url):
+    soup = BeautifulSoup(html_content, 'html.parser')
+    parsed_url = urlparse(original_url)
+    base_url = f"{parsed_url.scheme}://{parsed_url.netloc}/"
+    
+    # Handle paths that are not root, e.g., "https://x.com/some/path/w.html"
+    if parsed_url.path and not parsed_url.path.endswith('/'):
+        base_url = urljoin(base_url, parsed_url.path.rsplit('/', 1)[0] + '/')
+    base_tag = soup.find('base')
+    
+    print(base_url)
+    if not base_tag:
+        new_base_tag = soup.new_tag('base', href=base_url)
+        if soup.head:
+            soup.head.insert(0, new_base_tag)
+        else:
+            head_tag = soup.new_tag('head')
+            head_tag.insert(0, new_base_tag)
+            soup.insert(0, head_tag)
+    
+    return str(soup)
 
 def bypass_paywall(url):
     """
     Bypass paywall for a given url
     """
-    response = requests.get(url, headers=googlebot_headers)
-    response.encoding = response.apparent_encoding
-    return response.text
+    if url.startswith("http"):
+        response = requests.get(url, headers=googlebot_headers)
+        response.encoding = response.apparent_encoding
+        return add_base_tag(response.text, response.url)
+
+    try:
+        return bypass_paywall("https://" + url)
+    except requests.exceptions.RequestException as e:
+        return bypass_paywall("http://" + url)
 
 
 @app.route("/")
