@@ -12,10 +12,15 @@ def bypass_paywall(url):
     """
     Bypass paywall for a given url
     """
-    response = requests.get(url, headers=googlebot_headers)
-    response.encoding = response.apparent_encoding
-    return response.text
-
+    if url.startswith("http"):
+        response = requests.get(url, headers=googlebot_headers)
+        response.encoding = response.apparent_encoding
+        return response.text
+    
+    try:
+        return bypass_paywall("https://" + url)
+    except requests.exceptions.RequestException as e:
+        return bypass_paywall("http://" + url)
 
 @app.route("/")
 def main_page():
