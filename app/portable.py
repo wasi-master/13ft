@@ -85,6 +85,7 @@ html = """
 </html>
 """
 
+
 def bypass_paywall(url):
     """
     Bypass paywall for a given url
@@ -109,13 +110,14 @@ def show_article():
     except e:
         raise e
 
+
 @app.route("/", defaults={"path": ""})
-@app.route('/<path:path>', methods=["GET"])
+@app.route("/<path:path>", methods=["GET"])
 def get_article(path):
     full_url = request.url
-    parts = full_url.split('/',4)
+    parts = full_url.split("/", 4)
     if len(parts) >= 5:
-        actual_url = 'https://' + parts[4].lstrip('/')
+        actual_url = "https://" + parts[4].lstrip("/")
         try:
             return bypass_paywall(actual_url)
         except requests.exceptions.RequestException as e:
@@ -126,4 +128,4 @@ def get_article(path):
         return "Invalid URL", 400
 
 
-app.run(host='0.0.0.0', port=5000, debug=False)
+app.run(host="0.0.0.0", port=5000, debug=False)
