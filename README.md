@@ -48,6 +48,84 @@ python portable.py
 
 Then follow these simple steps
 
+### Customizing listening host and port, Systemd / Reverse-proxy example
+
+## 
+
+Installation using venv and running under specific bind address / port
+
+```sh
+python3 -m venv venv
+source venv/bin/activate
+python -m pip install -r requirements.txt
+FLASK_APP=app/portable.py flask run --host=127.0.0.1 --port=9982
+```
+
+## Systemd Service
+
+```
+/lib/systemd/system/13ft.service
+```
+
+```
+[Unit]
+Description=13ft Flask Service
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+Restart=on-failure
+RestartSec=10
+User=www-data
+Group=www-data
+Environment=APP_PATH=/var/www/paywall-break
+Environment=FLASK_APP=app/portable.py
+
+ExecStart=/bin/bash -c "cd ${APP_PATH};${APP_PATH}/venv/bin/flask run --host=127.0.0.1 --port=22113"
+
+# Make sure stderr/stdout is captured in the systemd journal.
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+```
+
+## Reverse Proxy
+
+```
+<VirtualHost *:22114>
+    ErrorLog ${APACHE_LOG_DIR}/13ft-error.log
+    CustomLog ${APACHE_LOG_DIR}/13ft-access.log combined
+
+    ProxyRequests Off
+
+    SSLEngine on
+    SSLCertificateFile      /etc/ssl/certs/ssl-cert-snakeoil.pem
+    SSLCertificateKeyFile /etc/ssl/private/ssl-cert-snakeoil.key
+    Header always set Strict-Transport-Security "max-age=63072000"
+    SSLProtocol             all -SSLv3 -TLSv1 -TLSv1.1
+
+    SSLHonorCipherOrder     off
+    SSLSessionTickets       off
+
+    Protocols h2 http/1.1
+
+    <Proxy *>
+        Order deny,allow
+        Allow from all
+    </Proxy>
+
+
+    ProxyPass / http://127.0.0.1:22113/
+    ProxyPassReverse / http://127.0.0.1:22113/
+
+
+</VirtualHost>
+```
+
+
 ### Step 1
 
 ![step 1 screenshot](screenshots/step-1.png)
