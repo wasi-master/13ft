@@ -16,13 +16,14 @@ It pretends to be GoogleBot (Google's web crawler) and gets the same content tha
 
 Requirements:
 - docker
-- docker-compose
+- Docker Compose (available as `docker compose`)
+
 First, clone the repo to your machine then run the following commands:
 
 ```sh
 git clone https://github.com/wasi-master/13ft.git
 cd 13ft
-docker-compose up
+docker compose up
 ```
 
 The image is also available from [DockerHub](https://hub.docker.com/r/wasimaster/13ft "docker pull wasimaster/13ft") or [ghcr.io](https://github.com/wasi-master/13ft/pkgs/container/13ft "docker pull ghcr.io/wasi-master/13ft:0.2.3") so the command `docker pull wasimaster/13ft` also works.
