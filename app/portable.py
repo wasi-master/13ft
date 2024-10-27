@@ -159,7 +159,7 @@ html = """
     <form action="/article" method="post">
         <h1>Enter Website Link</h1>
         <label for="link">Link of the website you want to remove paywall for:</label>
-        <input type="text" id="link" name="link" required>
+        <input type="text" id="link" name="link" required autofocus>
         <input type="submit" value="Submit">
     </form>
 
