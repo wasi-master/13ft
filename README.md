@@ -47,13 +47,9 @@ Then run `portable.py`, click [this link](https://realpython.com/run-python-scri
 python portable.py
 ```
 
-Then follow these simple steps
+Then open the link shown in the terminal in the browser and you'll be able to use this
 
-### Customizing listening host and port, Systemd / Reverse-proxy example
-
-## 
-
-Installation using venv and running under specific bind address / port
+### Installation using venv and running under specific bind address / port
 
 ```sh
 python3 -m venv venv
@@ -94,7 +90,9 @@ To show Bookmarks in Chrome, click the icon with three horizontal bars in the to
 
 Instructions courtesy of [@barakplasma](https://github.com/barakplasma)
 
-## Systemd Service
+## Customizing listening host and port, Systemd / Reverse-proxy example
+
+### Systemd Service
 
 ```
 /lib/systemd/system/13ft.service
@@ -125,7 +123,7 @@ StandardError=journal
 WantedBy=multi-user.target
 ```
 
-## Reverse Proxy
+### Reverse Proxy
 
 ```
 <VirtualHost *:22114>
@@ -158,6 +156,7 @@ WantedBy=multi-user.target
 </VirtualHost>
 ```
 
+## Screenshots
 
 ### Step 1
 
