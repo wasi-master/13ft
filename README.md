@@ -62,6 +62,38 @@ python -m pip install -r requirements.txt
 FLASK_APP=app/portable.py flask run --host=127.0.0.1 --port=9982
 ```
 
+
+## Using as a Bookmarklet in Chrome:
+
+You can create a bookmarklet that performs the URL transformation by writing a small JavaScript snippet. Below is the JavaScript code for your bookmarklet:
+```javascript
+javascript:(function(){window.location.href='https://13ft.wasimaster.me/'+encodeURIComponent(window.location.href);})();
+```
+You can replace https://13ft.wasimaster.me with your own 13ft instance if desired.
+
+Steps:
+1. Open Bookmarks Manager:
+
+2. Click on the three dots (menu) in the top-right corner of Chrome.
+Go to Bookmarks > Bookmark manager, or simply press Ctrl+Shift+O on Windows/Linux or Cmd+Option+B on Mac.
+Create a New Bookmark:
+
+3. In the Bookmark Manager, click the three-dot menu in the top-right corner of the window and select Add new bookmark.
+Enter Bookmark Details:
+    - Name: Enter a name for your bookmarklet, such as "13ft-ize". This name will show as a bookmark title in the bookmarks bar
+    - URL: Paste the JavaScript code provided above into the URL field.
+4. Click Save.
+
+Using the Bookmarklet:
+
+Navigate to the page whose URL you want to use 13ft on.
+
+Click on the bookmarklet you saved in your bookmarks bar. The browser will redirect you to the 13ft version of the URL using your service.
+
+To show Bookmarks in Chrome, click the icon with three horizontal bars in the top right corner to open options. 2. In options, hover over "Bookmarks" to display a second menu where you can click the "Show bookmarks bar" text to toggle the bar on or off.
+
+Instructions courtesy of [@barakplasma](https://github.com/barakplasma)
+
 ## Systemd Service
 
 ```
@@ -151,4 +183,4 @@ Voilà you now have bypassed the paywall and ads
 
 You can also append the url at the end of the link and it will also work. (e.g if your server is running at `http://127.0.0.1:5000` then you can go to `http://127.0.0.1:5000/https://example.com` and it will read out the contents of `https://example.com`)
 
-This feature is possible thanks to [atcasanova](https://github.com/atcasanova)
+This feature was implemented by [@atcasanova](https://github.com/atcasanova)
