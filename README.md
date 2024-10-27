@@ -158,6 +158,13 @@ WantedBy=multi-user.target
 </VirtualHost>
 ```
 
+## Run on runtipi
+
+[Runtipi](https://runtipi.io) is an open source personal homeserver orchestrator that enables you to manage and run multiple services on a single server. Free and open-source, runtipi lets you install all your favorite self-hosted apps without the hassle of configuring and managing each service. One-click installs and updates for more than 200 popular apps.
+
+Install Runtipi on your server and open the App Store. Locate 13ft, open its store page, and click Install. In a few moments 13ft will be running (exposed to the internet at the address you selected, if so configured) and you can proceed.
+
+## Usage
 
 ### Step 1
 
