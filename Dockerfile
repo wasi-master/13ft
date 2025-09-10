@@ -1,4 +1,4 @@
-FROM python:3.9.18-alpine
+FROM python:3.13.7-alpine
 
 # Generic labels
 LABEL maintainer="Arian Mollik Wasi <arianmollik323@gmail.com>"
