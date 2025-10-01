@@ -1,8 +1,9 @@
+from urllib.parse import urljoin, urlparse
+
 import flask
 import requests
-from flask import request
 from bs4 import BeautifulSoup
-from urllib.parse import urlparse, urljoin
+from flask import request
 
 app = flask.Flask(__name__)
 googlebot_headers = {
@@ -187,27 +188,29 @@ html = """
 </html>
 """
 
+
 def add_base_tag(html_content, original_url):
-    soup = BeautifulSoup(html_content, 'html.parser')
+    soup = BeautifulSoup(html_content, "html.parser")
     parsed_url = urlparse(original_url)
     base_url = f"{parsed_url.scheme}://{parsed_url.netloc}/"
-    
+
     # Handle paths that are not root, e.g., "https://x.com/some/path/w.html"
-    if parsed_url.path and not parsed_url.path.endswith('/'):
-        base_url = urljoin(base_url, parsed_url.path.rsplit('/', 1)[0] + '/')
-    base_tag = soup.find('base')
-    
+    if parsed_url.path and not parsed_url.path.endswith("/"):
+        base_url = urljoin(base_url, parsed_url.path.rsplit("/", 1)[0] + "/")
+    base_tag = soup.find("base")
+
     print(base_url)
     if not base_tag:
-        new_base_tag = soup.new_tag('base', href=base_url)
+        new_base_tag = soup.new_tag("base", href=base_url)
         if soup.head:
             soup.head.insert(0, new_base_tag)
         else:
-            head_tag = soup.new_tag('head')
+            head_tag = soup.new_tag("head")
             head_tag.insert(0, new_base_tag)
             soup.insert(0, head_tag)
-    
+
     return str(soup)
+
 
 def bypass_paywall(url):
     """
