@@ -22,5 +22,5 @@ COPY . .
 RUN pip install -r requirements.txt
 WORKDIR /app
 EXPOSE 5000
-ENTRYPOINT [ "python" ]
-CMD [ "portable.py" ] 
+ENTRYPOINT [ "gunicorn" ]
+CMD [  "portable:app" ]
