@@ -12,6 +12,10 @@ It pretends to be GoogleBot (Google's web crawler) and gets the same content tha
 
 ## How do I use it?
 
+### Recommended Hosting
+
+If you want to use a hosting provider I recommended and personally use [TD Web Services](https://tdwebservices.com/)
+
 ### Using Docker
 
 Requirements:
