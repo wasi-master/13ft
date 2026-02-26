@@ -19,6 +19,7 @@ If you want to use a hosting provider I recommended and personally use [TD Web S
 ### Using Docker
 
 Requirements:
+
 - docker
 - Docker Compose (available as `docker compose`)
 
@@ -48,7 +49,7 @@ If that doesn't work retry but replace `python` with `py`, then try `python3`, t
 Then run `portable.py`, click [this link](https://realpython.com/run-python-scripts/) for a tutorial on how to run python scripts.
 
 ```sh
-python portable.py
+python -m gunicorn 'portable:app'
 ```
 
 Then open the link shown in the terminal in the browser and you'll be able to use this
@@ -62,26 +63,29 @@ python -m pip install -r requirements.txt
 FLASK_APP=app/portable.py flask run --host=127.0.0.1 --port=9982
 ```
 
-
 ## Using as a Bookmarklet in Chrome:
 
 You can create a bookmarklet that performs the URL transformation by writing a small JavaScript snippet. Below is the JavaScript code for your bookmarklet:
+
 ```javascript
-javascript:(function(){window.location.href='https://13ft.wasimaster.me/'+encodeURIComponent(window.location.href);})();
+javascript: (function () {
+  window.location.href =
+    "https://13ft.wasimaster.me/" + encodeURIComponent(window.location.href);
+})();
 ```
+
 You can replace https://13ft.wasimaster.me with your own 13ft instance if desired.
 
 Steps:
+
 1. Open Bookmarks Manager:
 
 2. Click on the three dots (menu) in the top-right corner of Chrome.
-Go to Bookmarks > Bookmark manager, or simply press Ctrl+Shift+O on Windows/Linux or Cmd+Option+B on Mac.
-Create a New Bookmark:
+   Go to Bookmarks > Bookmark manager, or simply press Ctrl+Shift+O on Windows/Linux or Cmd+Option+B on Mac.
+   Create a New Bookmark:
 
 3. In the Bookmark Manager, click the three-dot menu in the top-right corner of the window and select Add new bookmark.
-Enter Bookmark Details:
-    - Name: Enter a name for your bookmarklet, such as "13ft-ize". This name will show as a bookmark title in the bookmarks bar
-    - URL: Paste the JavaScript code provided above into the URL field.
+   Enter Bookmark Details: - Name: Enter a name for your bookmarklet, such as "13ft-ize". This name will show as a bookmark title in the bookmarks bar - URL: Paste the JavaScript code provided above into the URL field.
 4. Click Save.
 
 Using the Bookmarklet:
