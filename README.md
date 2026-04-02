@@ -166,6 +166,28 @@ WantedBy=multi-user.target
 </VirtualHost>
 ```
 
+## Localisation
+
+The UI strings can be localised by setting the `LOCALE` environment variable before starting the app. Locale files live in `/home/runner/work/13ft/13ft/app/locales/<locale>.json`.
+
+Built-in locales:
+
+- `en` (default)
+- `de`
+- `fr`
+
+Examples:
+
+```sh
+# from /home/runner/work/13ft/13ft/app
+LOCALE=de python portable.py
+
+# or with gunicorn
+LOCALE=fr python -m gunicorn 'portable:app'
+```
+
+To add a new locale, copy `/home/runner/work/13ft/13ft/app/locales/en.json` to a new file such as `/home/runner/work/13ft/13ft/app/locales/es.json` and translate the values.
+
 ## Screenshots
 
 ### Step 1
