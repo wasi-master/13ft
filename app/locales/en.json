@@ -1,0 +1,7 @@
+{
+  "heading": "Enter Website Link",
+  "label": "Link of the website you want to remove paywall for:",
+  "submit": "Submit",
+  "toggle_dark_mode": "Toggle Dark Mode",
+  "invalid_url": "Invalid URL"
+}

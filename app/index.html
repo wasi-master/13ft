@@ -144,13 +144,13 @@
 <body>
     <div class="dark-mode-toggle">
         <input type="checkbox" id="dark-mode-toggle">
-        <label for="dark-mode-toggle" title="Toggle Dark Mode"></label>
+        <label for="dark-mode-toggle" title="{{ toggle_dark_mode }}"></label>
     </div>
     <form action="/article" method="post">
-        <h1>Enter Website Link</h1>
-        <label for="link">Link of the website you want to remove paywall for:</label>
+        <h1>{{ heading }}</h1>
+        <label for="link">{{ label }}</label>
         <input type="text" id="link" name="link" required autofocus>
-        <input type="submit" value="Submit">
+        <input type="submit" value="{{ submit }}">
     </form>
 
     <script>

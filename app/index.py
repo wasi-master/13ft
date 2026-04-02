@@ -1,3 +1,7 @@
+import json
+import os
+import re
+
 import flask
 import requests
 from flask import request
@@ -5,6 +9,43 @@ from bs4 import BeautifulSoup
 from urllib.parse import urlparse, urljoin
 
 app = flask.Flask(__name__)
+
+_DEFAULT_STRINGS = {
+    "heading": "Enter Website Link",
+    "label": "Link of the website you want to remove paywall for:",
+    "submit": "Submit",
+    "toggle_dark_mode": "Toggle Dark Mode",
+    "invalid_url": "Invalid URL",
+}
+
+
+def load_strings():
+    """Load UI strings from a locale JSON file selected by the LOCALE env var.
+
+    Falls back to built-in English strings when the locale file is missing or
+    cannot be parsed.  Only alphanumeric characters, hyphens, and underscores
+    are accepted as locale names to prevent path traversal.
+    """
+    locale = os.environ.get("LOCALE", "en")
+    if not re.match(r'^[a-zA-Z0-9_-]+$', locale):
+        locale = "en"
+
+    if locale == "en":
+        return dict(_DEFAULT_STRINGS)
+
+    locale_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "locales")
+    locale_file = os.path.join(locale_dir, f"{locale}.json")
+
+    try:
+        with open(locale_file, "r", encoding="utf-8") as f:
+            loaded = json.load(f)
+        return {**_DEFAULT_STRINGS, **loaded}
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return dict(_DEFAULT_STRINGS)
+
+
+strings = load_strings()
+
 googlebot_headers = {
     "User-Agent": "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.6533.119 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
 }
@@ -48,7 +89,10 @@ def bypass_paywall(url):
 
 @app.route("/")
 def main_page():
-    return flask.send_from_directory(".", "index.html")
+    template_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html")
+    with open(template_path, "r", encoding="utf-8") as f:
+        template = f.read()
+    return flask.render_template_string(template, **strings)
 
 
 @app.route("/article", methods=["POST"])
@@ -73,10 +117,10 @@ def get_article(path):
             return bypass_paywall(actual_url)
         except requests.exceptions.RequestException as e:
             return str(e), 400
-        except e:
+        except Exception as e:
             raise e
     else:
-        return "Invalid URL", 400
+        return strings["invalid_url"], 400
 
 
 app.run(debug=False)
