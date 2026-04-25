@@ -1,0 +1,9 @@
+services:
+  13ft:
+    container_name: 13ft
+    hostname: 13ft
+    build:
+      context: .
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
