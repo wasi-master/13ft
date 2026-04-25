@@ -156,7 +156,47 @@ WantedBy=multi-user.target
 </VirtualHost>
 ```
 
-## Screenshots
+## Localisation
+
+The UI strings can be localised by setting the `LOCALE` environment variable to a supported locale code before starting the server. Locale files live in `app/locales/<locale>.json`.
+
+**Built-in locales**
+
+| Code | Language |
+|------|----------|
+| `en` | English (default) |
+| `de` | German |
+| `fr` | French |
+
+**Running with a different locale**
+
+```sh
+# Standard Python
+LOCALE=de python portable.py
+
+# Flask dev server
+LOCALE=fr FLASK_APP=app/portable.py flask run
+
+# Docker Compose – add to docker-compose.yaml
+environment:
+  - LOCALE=de
+```
+
+**Adding a new locale**
+
+Create `app/locales/<code>.json` with the following keys (any keys you omit fall back to English):
+
+```json
+{
+  "heading": "Enter Website Link",
+  "label": "Link of the website you want to remove paywall for:",
+  "submit": "Submit",
+  "toggle_dark_mode": "Toggle Dark Mode",
+  "invalid_url": "Invalid URL"
+}
+```
+
+
 
 ### Step 1
 
