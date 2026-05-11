@@ -13,6 +13,9 @@ This is a simple self hosted server that has a simple but powerful interface to 
 
 It pretends to be GoogleBot (Google's web crawler) and gets the same content that google will get. Google gets the whole page so that the content of the article can be indexed properly and this takes advantage of that.
 
+The server now displays a loading/status page while it fetches the target article and will automatically try multiple bypass methods (multi-source fallbacks) if the primary approach fails. This improves compatibility with sites that employ stronger paywalls or blocking behaviour. Feature courtesy of [@JRS1986](https://github.com/JRS1986)
+
+
 ## How do I use it?
 
 ### Using Docker
