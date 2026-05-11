@@ -44,6 +44,13 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: 👤 login to docker hub
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: 🏷 docker meta
         id: docker_meta # you'll use this in the next step
         uses: docker/metadata-action@v3
@@ -51,6 +58,7 @@ jobs:
           # list of Docker images to use as base name for tags
           images: |
             ghcr.io/${{ github.repository_owner }}/13ft
+            docker.io/wasimaster/13ft
           # Docker tags based on the following events/attributes
           tags: |
             type=schedule
