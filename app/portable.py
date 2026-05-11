@@ -1,3 +1,4 @@
+import json
 import os
 import flask
 import re
@@ -5,11 +6,79 @@ import requests
 import uuid
 import threading
 import time
+from functools import lru_cache
 from urllib.parse import urljoin, urlparse, quote
 from flask import request, Response
 from bs4 import BeautifulSoup
 
 app = flask.Flask(__name__)
+
+_DEFAULT_STRINGS = {
+    "heading": "Enter Website Link",
+    "label": "Link of the website you want to remove paywall for:",
+    "submit": "Submit",
+    "toggle_dark_mode": "Toggle Dark Mode",
+    "status_heading": "Fetching Article",
+    "error_title": "Something went wrong",
+    "retry_button": "Try Another URL",
+    "elapsed_template": "{seconds}s elapsed",
+    "connection_lost_error": "Connection to server lost. The page may be taking too long to load.",
+    "step_connect": "Connecting to website...",
+    "step_fetch": "Downloading page content...",
+    "step_detect": "Checking for anti-bot challenges...",
+    "step_fallback_freedium": "Trying Freedium (Medium bypass)...",
+    "step_fallback_org": "Trying archive.org snapshot...",
+    "step_fallback_ph": "Trying archive.today / archive.ph snapshot...",
+    "step_process": "Processing article...",
+    "step_cleanup": "Cleaning up & preparing view...",
+    "step_done": "Done!",
+    "invalid_url": "Invalid URL",
+    "medium_challenge_error": (
+        "Medium served an anti-bot challenge and Freedium / archive.org / "
+        "archive.today all came back empty. The article may be too new to "
+        "have been archived yet."
+    ),
+    "challenge_error": (
+        "The site served an anti-bot challenge (Cloudflare or similar) "
+        "and no usable snapshot was found on archive.org or archive.today. "
+        "This site is actively blocking automated requests."
+    ),
+    "timeout_error": "The website took too long to respond (30s timeout). Try again later.",
+    "connection_error": "Could not connect to the website. Check the URL and try again.",
+    "request_error": "Failed to fetch the page.",
+    "unexpected_error": "Unexpected error while fetching the page.",
+}
+
+
+def get_locale():
+    locale = os.environ.get("LOCALE", "en")
+    if not re.match(r"^[a-zA-Z0-9_-]+$", locale):
+        locale = "en"
+    return locale
+
+
+@lru_cache(maxsize=None)
+def load_strings_for_locale(locale):
+    strings = dict(_DEFAULT_STRINGS)
+    locale_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "locales")
+    locale_file = os.path.join(locale_dir, f"{locale}.json")
+
+    if locale != "en":
+        try:
+            with open(locale_file, "r", encoding="utf-8") as file:
+                strings.update(json.load(file))
+        except (FileNotFoundError, json.JSONDecodeError, OSError):
+            strings = dict(_DEFAULT_STRINGS)
+            locale = "en"
+
+    strings["lang"] = locale
+    return strings
+
+
+def load_strings():
+    return dict(load_strings_for_locale(get_locale()))
+
+
 googlebot_headers = {
     "User-Agent": "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.6533.119 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
 }
@@ -17,9 +86,15 @@ googlebot_headers = {
 jobs = {}
 jobs_lock = threading.Lock()
 
+
+class UserFacingError(Exception):
+    def __init__(self, user_message):
+        super().__init__(user_message)
+        self.user_message = user_message
+
 html = """
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ lang }}">
 
 <head>
     <meta charset="UTF-8">
@@ -249,21 +324,21 @@ html = """
 <body>
     <div class="dark-mode-toggle">
         <input type="checkbox" id="dark-mode-toggle">
-        <label for="dark-mode-toggle" title="Toggle Dark Mode"></label>
+        <label for="dark-mode-toggle" title="{{ toggle_dark_mode }}"></label>
     </div>
 
     <div id="form-view">
         <form id="url-form">
-            <h1>Enter Website Link</h1>
-            <label for="link">Link of the website you want to remove paywall for:</label>
+            <h1>{{ heading }}</h1>
+            <label for="link">{{ label }}</label>
             <input type="text" id="link" name="link" required autofocus>
-            <input type="submit" value="Submit">
+            <input type="submit" value="{{ submit }}">
         </form>
     </div>
 
     <div id="status-view" style="display:none;">
         <div class="status-container">
-            <h1>Fetching Article</h1>
+            <h1>{{ status_heading }}</h1>
             <div class="url-display" id="status-url"></div>
             <div class="progress-bar-track">
                 <div class="progress-bar-fill" id="progress-fill"></div>
@@ -293,17 +368,8 @@ html = """
             }
         });
 
-        const STEPS = [
-            { id: 'connect',           label: 'Connecting to website...' },
-            { id: 'fetch',             label: 'Downloading page content...' },
-            { id: 'detect',            label: 'Checking for anti-bot challenges...' },
-            { id: 'fallback_freedium', label: 'Trying Freedium (Medium bypass)...' },
-            { id: 'fallback_org',      label: 'Trying archive.org snapshot...' },
-            { id: 'fallback_ph',       label: 'Trying archive.today / archive.ph snapshot...' },
-            { id: 'process',           label: 'Processing article...' },
-            { id: 'cleanup',           label: 'Cleaning up & preparing view...' },
-            { id: 'done',              label: 'Done!' }
-        ];
+        const UI_STRINGS = {{ ui_strings | tojson }};
+        const STEPS = {{ steps | tojson }};
 
         function renderSteps(activeIdx) {
             const container = document.getElementById('steps-list');
@@ -343,14 +409,14 @@ html = """
             const box = document.createElement('div');
             box.className = 'error-box';
             const strong = document.createElement('strong');
-            strong.textContent = 'Something went wrong';
+            strong.textContent = UI_STRINGS.error_title;
             box.appendChild(strong);
             box.appendChild(document.createTextNode(message));
             area.appendChild(box);
             const retry = document.createElement('a');
             retry.href = '/';
             retry.className = 'retry-btn';
-            retry.textContent = 'Try Another URL';
+            retry.textContent = UI_STRINGS.retry_button;
             area.appendChild(retry);
         }
 
@@ -366,7 +432,7 @@ html = """
 
             const timer = setInterval(() => {
                 const sec = ((Date.now() - startTime) / 1000).toFixed(0);
-                elapsedEl.textContent = sec + 's elapsed';
+                elapsedEl.textContent = UI_STRINGS.elapsed_template.replace('{seconds}', sec);
             }, 500);
 
             const evtSource = new EventSource('/status/' + encodeURIComponent(link));
@@ -404,7 +470,7 @@ html = """
             evtSource.onerror = function() {
                 evtSource.close();
                 clearInterval(timer);
-                showError('Connection to server lost. The page may be taking too long to load.');
+                showError(UI_STRINGS.connection_lost_error);
             };
         });
     </script>
@@ -412,6 +478,36 @@ html = """
 
 </html>
 """
+
+
+def build_steps(strings):
+    return [
+        {"id": "connect", "label": strings["step_connect"]},
+        {"id": "fetch", "label": strings["step_fetch"]},
+        {"id": "detect", "label": strings["step_detect"]},
+        {"id": "fallback_freedium", "label": strings["step_fallback_freedium"]},
+        {"id": "fallback_org", "label": strings["step_fallback_org"]},
+        {"id": "fallback_ph", "label": strings["step_fallback_ph"]},
+        {"id": "process", "label": strings["step_process"]},
+        {"id": "cleanup", "label": strings["step_cleanup"]},
+        {"id": "done", "label": strings["step_done"]},
+    ]
+
+
+def render_main_page():
+    strings = load_strings()
+    ui_strings = {
+        "error_title": strings["error_title"],
+        "retry_button": strings["retry_button"],
+        "elapsed_template": strings["elapsed_template"],
+        "connection_lost_error": strings["connection_lost_error"],
+    }
+    return flask.render_template_string(
+        html,
+        steps=build_steps(strings),
+        ui_strings=ui_strings,
+        **strings,
+    )
 
 
 def add_base_tag(html_content, original_url):
@@ -568,7 +664,7 @@ def fetch_via_archive_ph(url, job_id=None):
     return None, None
 
 
-def bypass_paywall(url, job_id=None):
+def bypass_paywall(url, strings, job_id=None):
     set_step(job_id, 'connect')
 
     if not url.startswith("http"):
@@ -611,18 +707,10 @@ def bypass_paywall(url, job_id=None):
 
         if not recovered:
             if medium:
-                msg = (
-                    "Medium served an anti-bot challenge and Freedium / archive.org / "
-                    "archive.today all came back empty. The article may be too new to "
-                    "have been archived yet."
-                )
+                msg = strings["medium_challenge_error"]
             else:
-                msg = (
-                    "The site served an anti-bot challenge (Cloudflare or similar) "
-                    "and no usable snapshot was found on archive.org or archive.today. "
-                    "This site is actively blocking automated requests."
-                )
-            raise RuntimeError(msg)
+                msg = strings["challenge_error"]
+            raise UserFacingError(msg)
 
     set_step(job_id, 'process')
     result = add_base_tag(html_text, final_url)
@@ -631,48 +719,47 @@ def bypass_paywall(url, job_id=None):
     return result
 
 
-def fetch_worker(job_id, url):
+def fetch_worker(job_id, url, strings):
     try:
-        result = bypass_paywall(url, job_id)
+        result = bypass_paywall(url, strings, job_id)
         with jobs_lock:
             jobs[job_id]['result'] = result
             jobs[job_id]['step'] = 'done'
     except requests.exceptions.Timeout:
         with jobs_lock:
-            jobs[job_id]['error'] = 'The website took too long to respond (30s timeout). Try again later.'
+            jobs[job_id]['error'] = strings["timeout_error"]
             jobs[job_id]['step'] = 'error'
     except requests.exceptions.ConnectionError:
         with jobs_lock:
-            jobs[job_id]['error'] = 'Could not connect to the website. Check the URL and try again.'
+            jobs[job_id]['error'] = strings["connection_error"]
             jobs[job_id]['step'] = 'error'
     except requests.exceptions.RequestException as e:
         with jobs_lock:
-            jobs[job_id]['error'] = f'Failed to fetch the page: {e}'
+            jobs[job_id]['error'] = strings["request_error"]
             jobs[job_id]['step'] = 'error'
-    except RuntimeError as e:
+    except UserFacingError as error:
         with jobs_lock:
-            jobs[job_id]['error'] = str(e)
+            jobs[job_id]['error'] = error.user_message
             jobs[job_id]['step'] = 'error'
     except Exception as e:
         with jobs_lock:
-            jobs[job_id]['error'] = f'Unexpected error: {e}'
+            jobs[job_id]['error'] = strings["unexpected_error"]
             jobs[job_id]['step'] = 'error'
 
 
 @app.route("/")
 def main_page():
-    return html
+    return render_main_page()
 
 
 @app.route("/status/<path:url>")
 def status_stream(url):
-    import json
-
+    strings = load_strings()
     job_id = str(uuid.uuid4())
     with jobs_lock:
         jobs[job_id] = {'step': 'queued', 'result': None, 'error': None}
 
-    thread = threading.Thread(target=fetch_worker, args=(job_id, url))
+    thread = threading.Thread(target=fetch_worker, args=(job_id, url, strings))
     thread.daemon = True
     thread.start()
 
@@ -710,29 +797,43 @@ def status_stream(url):
 @app.route("/article", methods=["POST"])
 def show_article():
     link = flask.request.form["link"]
+    strings = load_strings()
     try:
-        return bypass_paywall(link)
-    except requests.exceptions.RequestException as e:
-        return str(e), 400
-    except Exception as e:
-        raise e
+        return bypass_paywall(link, strings)
+    except requests.exceptions.Timeout:
+        return strings["timeout_error"], 400
+    except requests.exceptions.ConnectionError:
+        return strings["connection_error"], 400
+    except requests.exceptions.RequestException:
+        return strings["request_error"], 400
+    except UserFacingError as error:
+        return error.user_message, 400
+    except Exception:
+        return strings["unexpected_error"], 500
 
 
 @app.route("/", defaults={"path": ""})
 @app.route("/<path:path>", methods=["GET"])
 def get_article(path):
+    strings = load_strings()
     full_url = request.url
     parts = full_url.split("/", 4)
     if len(parts) >= 5:
         actual_url = "https://" + parts[4].lstrip("/")
         try:
-            return bypass_paywall(actual_url)
-        except requests.exceptions.RequestException as e:
-            return str(e), 400
-        except Exception as e:
-            raise e
+            return bypass_paywall(actual_url, strings)
+        except requests.exceptions.Timeout:
+            return strings["timeout_error"], 400
+        except requests.exceptions.ConnectionError:
+            return strings["connection_error"], 400
+        except requests.exceptions.RequestException:
+            return strings["request_error"], 400
+        except UserFacingError as error:
+            return error.user_message, 400
+        except Exception:
+            return strings["unexpected_error"], 500
     else:
-        return "Invalid URL", 400
+        return strings["invalid_url"], 400
 
 
 if __name__ == "__main__":
