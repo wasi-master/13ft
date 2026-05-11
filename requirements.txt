@@ -1,3 +1,4 @@
-flask
-requests
 bs4
+flask
+gunicorn
+requests

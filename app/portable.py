@@ -1,3 +1,6 @@
+import os
+from urllib.parse import urljoin, urlparse
+
 import flask
 import re
 import requests
@@ -408,20 +411,21 @@ html = """
 
 
 def add_base_tag(html_content, original_url):
-    soup = BeautifulSoup(html_content, 'html.parser')
+    soup = BeautifulSoup(html_content, "html.parser")
     parsed_url = urlparse(original_url)
     base_url = f"{parsed_url.scheme}://{parsed_url.netloc}/"
 
-    if parsed_url.path and not parsed_url.path.endswith('/'):
-        base_url = urljoin(base_url, parsed_url.path.rsplit('/', 1)[0] + '/')
-    base_tag = soup.find('base')
 
+    # Handle paths that are not root, e.g., "https://x.com/some/path/w.html"
+    if parsed_url.path and not parsed_url.path.endswith("/"):
+        base_url = urljoin(base_url, parsed_url.path.rsplit("/", 1)[0] + "/")
+    base_tag = soup.find("base")
     if not base_tag:
-        new_base_tag = soup.new_tag('base', href=base_url)
+        new_base_tag = soup.new_tag("base", href=base_url)
         if soup.head:
             soup.head.insert(0, new_base_tag)
         else:
-            head_tag = soup.new_tag('head')
+            head_tag = soup.new_tag("head")
             head_tag.insert(0, new_base_tag)
             soup.insert(0, head_tag)
 
@@ -711,8 +715,8 @@ def show_article():
         return bypass_paywall(link)
     except requests.exceptions.RequestException as e:
         return str(e), 400
-    except Exception as exc:
-        raise exc
+    except Exception as e:
+        raise e
 
 
 @app.route("/", defaults={"path": ""})
@@ -732,4 +736,5 @@ def get_article(path):
         return "Invalid URL", 400
 
 
-app.run(host="0.0.0.0", port=5000, debug=False)
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=os.getenv("PORT") or 5000, debug=False)
