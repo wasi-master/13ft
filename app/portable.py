@@ -1,3 +1,4 @@
+import os
 from urllib.parse import urljoin, urlparse
 
 import flask
@@ -239,7 +240,7 @@ def show_article():
         return bypass_paywall(link)
     except requests.exceptions.RequestException as e:
         return str(e), 400
-    except e:
+    except Exception as e:
         raise e
 
 
@@ -254,11 +255,11 @@ def get_article(path):
             return bypass_paywall(actual_url)
         except requests.exceptions.RequestException as e:
             return str(e), 400
-        except e:
+        except Exception as e:
             raise e
     else:
         return "Invalid URL", 400
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=False)
+    app.run(host="0.0.0.0", port=os.getenv("PORT") or 5000, debug=False)

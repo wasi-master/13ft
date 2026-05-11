@@ -45,10 +45,16 @@ If that doesn't work retry but replace `python` with `py`, then try `python3`, t
 Then run `portable.py`, click [this link](https://realpython.com/run-python-scripts/) for a tutorial on how to run python scripts.
 
 ```sh
+python portable.py
+```
+
+Or you can also run via gunicorn as follows:
+
+```sh
 python -m gunicorn 'portable:app'
 ```
 
-Then open the link shown in the terminal in the browser and you'll be able to use this
+Then open the link shown in the terminal in the browser and you'll be able to use this script
 
 ### Installation using venv and running under specific bind address / port
 
@@ -64,10 +70,7 @@ FLASK_APP=app/portable.py flask run --host=127.0.0.1 --port=9982
 You can create a bookmarklet that performs the URL transformation by writing a small JavaScript snippet. Below is the JavaScript code for your bookmarklet:
 
 ```javascript
-javascript: (function () {
-  window.location.href =
-    "https://13ft.wasimaster.me/" + encodeURIComponent(window.location.href);
-})();
+javascript: (function () {window.location.href="https://13ft.wasimaster.me/" + encodeURIComponent(window.location.href);})();
 ```
 
 You can replace https://13ft.wasimaster.me with your own 13ft instance if desired.
