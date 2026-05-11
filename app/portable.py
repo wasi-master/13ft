@@ -6,6 +6,7 @@ import requests
 import uuid
 import threading
 import time
+from functools import lru_cache
 from urllib.parse import urljoin, urlparse, quote
 from flask import request, Response
 from bs4 import BeautifulSoup
@@ -44,16 +45,20 @@ _DEFAULT_STRINGS = {
     ),
     "timeout_error": "The website took too long to respond (30s timeout). Try again later.",
     "connection_error": "Could not connect to the website. Check the URL and try again.",
-    "request_error": "Failed to fetch the page: {error}",
-    "unexpected_error": "Unexpected error: {error}",
+    "request_error": "Failed to fetch the page.",
+    "unexpected_error": "Unexpected error while fetching the page.",
 }
 
 
-def load_strings():
+def get_locale():
     locale = os.environ.get("LOCALE", "en")
     if not re.match(r"^[a-zA-Z0-9_-]+$", locale):
         locale = "en"
+    return locale
 
+
+@lru_cache(maxsize=None)
+def load_strings_for_locale(locale):
     strings = dict(_DEFAULT_STRINGS)
     locale_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "locales")
     locale_file = os.path.join(locale_dir, f"{locale}.json")
@@ -63,16 +68,29 @@ def load_strings():
             with open(locale_file, "r", encoding="utf-8") as file:
                 strings.update(json.load(file))
         except (FileNotFoundError, json.JSONDecodeError, OSError):
+            strings = dict(_DEFAULT_STRINGS)
             locale = "en"
 
     strings["lang"] = locale
     return strings
+
+
+def load_strings():
+    return dict(load_strings_for_locale(get_locale()))
+
+
 googlebot_headers = {
     "User-Agent": "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.6533.119 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
 }
 
 jobs = {}
 jobs_lock = threading.Lock()
+
+
+class UserFacingError(Exception):
+    def __init__(self, user_message):
+        super().__init__(user_message)
+        self.user_message = user_message
 
 html = """
 <!DOCTYPE html>
@@ -692,7 +710,7 @@ def bypass_paywall(url, strings, job_id=None):
                 msg = strings["medium_challenge_error"]
             else:
                 msg = strings["challenge_error"]
-            raise RuntimeError(msg)
+            raise UserFacingError(msg)
 
     set_step(job_id, 'process')
     result = add_base_tag(html_text, final_url)
@@ -717,15 +735,15 @@ def fetch_worker(job_id, url, strings):
             jobs[job_id]['step'] = 'error'
     except requests.exceptions.RequestException as e:
         with jobs_lock:
-            jobs[job_id]['error'] = strings["request_error"].format(error=e)
+            jobs[job_id]['error'] = strings["request_error"]
             jobs[job_id]['step'] = 'error'
-    except RuntimeError as e:
+    except UserFacingError as error:
         with jobs_lock:
-            jobs[job_id]['error'] = str(e)
+            jobs[job_id]['error'] = error.user_message
             jobs[job_id]['step'] = 'error'
     except Exception as e:
         with jobs_lock:
-            jobs[job_id]['error'] = strings["unexpected_error"].format(error=e)
+            jobs[job_id]['error'] = strings["unexpected_error"]
             jobs[job_id]['step'] = 'error'
 
 
@@ -782,10 +800,16 @@ def show_article():
     strings = load_strings()
     try:
         return bypass_paywall(link, strings)
-    except requests.exceptions.RequestException as e:
-        return strings["request_error"].format(error=e), 400
-    except Exception as e:
-        raise e
+    except requests.exceptions.Timeout:
+        return strings["timeout_error"], 400
+    except requests.exceptions.ConnectionError:
+        return strings["connection_error"], 400
+    except requests.exceptions.RequestException:
+        return strings["request_error"], 400
+    except UserFacingError as error:
+        return error.user_message, 400
+    except Exception:
+        return strings["unexpected_error"], 500
 
 
 @app.route("/", defaults={"path": ""})
@@ -798,10 +822,16 @@ def get_article(path):
         actual_url = "https://" + parts[4].lstrip("/")
         try:
             return bypass_paywall(actual_url, strings)
-        except requests.exceptions.RequestException as e:
-            return strings["request_error"].format(error=e), 400
-        except Exception as e:
-            raise e
+        except requests.exceptions.Timeout:
+            return strings["timeout_error"], 400
+        except requests.exceptions.ConnectionError:
+            return strings["connection_error"], 400
+        except requests.exceptions.RequestException:
+            return strings["request_error"], 400
+        except UserFacingError as error:
+            return error.user_message, 400
+        except Exception:
+            return strings["unexpected_error"], 500
     else:
         return strings["invalid_url"], 400
 

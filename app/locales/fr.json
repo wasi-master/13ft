@@ -22,6 +22,6 @@
   "challenge_error": "Le site a présenté une protection anti-bot (Cloudflare ou similaire) et aucun instantané exploitable n'a été trouvé sur archive.org ou archive.today. Ce site bloque activement les requêtes automatisées.",
   "timeout_error": "Le site web a mis trop de temps à répondre (délai de 30 s). Veuillez réessayer plus tard.",
   "connection_error": "Impossible de se connecter au site web. Vérifiez l'URL et réessayez.",
-  "request_error": "Échec de récupération de la page : {error}",
-  "unexpected_error": "Erreur inattendue : {error}"
+  "request_error": "Impossible de récupérer la page.",
+  "unexpected_error": "Erreur inattendue lors du chargement de la page."
 }

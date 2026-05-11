@@ -22,6 +22,6 @@
   "challenge_error": "Die Website hat eine Anti-Bot-Prüfung (Cloudflare oder ähnlich) ausgeliefert und es wurde kein brauchbarer Schnappschuss auf archive.org oder archive.today gefunden. Diese Website blockiert aktiv automatisierte Anfragen.",
   "timeout_error": "Die Website hat zu lange zum Antworten gebraucht (30s-Timeout). Bitte versuchen Sie es später erneut.",
   "connection_error": "Die Verbindung zur Website konnte nicht hergestellt werden. Prüfen Sie die URL und versuchen Sie es erneut.",
-  "request_error": "Seite konnte nicht geladen werden: {error}",
-  "unexpected_error": "Unerwarteter Fehler: {error}"
+  "request_error": "Die Seite konnte nicht geladen werden.",
+  "unexpected_error": "Unerwarteter Fehler beim Laden der Seite."
 }

@@ -22,6 +22,6 @@
   "challenge_error": "The site served an anti-bot challenge (Cloudflare or similar) and no usable snapshot was found on archive.org or archive.today. This site is actively blocking automated requests.",
   "timeout_error": "The website took too long to respond (30s timeout). Try again later.",
   "connection_error": "Could not connect to the website. Check the URL and try again.",
-  "request_error": "Failed to fetch the page: {error}",
-  "unexpected_error": "Unexpected error: {error}"
+  "request_error": "Failed to fetch the page.",
+  "unexpected_error": "Unexpected error while fetching the page."
 }
