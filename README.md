@@ -1,7 +1,7 @@
 # 13 Feet Ladder
 
 <img src="https://raw.githubusercontent.com/wasi-master/13ft/refs/heads/main/logo.png" align="right"
-     alt="Size Limit logo by Anton Lovchikov" width="120" height="178">
+     alt="13 Feet Ladder Logo by @mcmikemn" width="150">
 
 A site similar to [12ft.io](https://12ft.io) but is self hosted and works with websites that 12ft.io doesn't work with.
 
