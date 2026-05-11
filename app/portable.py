@@ -1,15 +1,13 @@
 import os
-from urllib.parse import urljoin, urlparse
-
 import flask
 import re
 import requests
 import uuid
 import threading
 import time
+from urllib.parse import urljoin, urlparse, quote
 from flask import request, Response
 from bs4 import BeautifulSoup
-from urllib.parse import urlparse, urljoin, quote
 
 app = flask.Flask(__name__)
 googlebot_headers = {
@@ -17,6 +15,7 @@ googlebot_headers = {
 }
 
 jobs = {}
+jobs_lock = threading.Lock()
 
 html = """
 <!DOCTYPE html>
@@ -340,9 +339,19 @@ html = """
 
         function showError(message) {
             const area = document.getElementById('error-area');
-            area.innerHTML = '<div class="error-box"><strong>Something went wrong</strong>' +
-                message + '</div>' +
-                '<a href="/" class="retry-btn">Try Another URL</a>';
+            area.innerHTML = '';
+            const box = document.createElement('div');
+            box.className = 'error-box';
+            const strong = document.createElement('strong');
+            strong.textContent = 'Something went wrong';
+            box.appendChild(strong);
+            box.appendChild(document.createTextNode(message));
+            area.appendChild(box);
+            const retry = document.createElement('a');
+            retry.href = '/';
+            retry.className = 'retry-btn';
+            retry.textContent = 'Try Another URL';
+            area.appendChild(retry);
         }
 
         document.getElementById('url-form').addEventListener('submit', function(e) {
@@ -360,17 +369,12 @@ html = """
                 elapsedEl.textContent = sec + 's elapsed';
             }, 500);
 
-            const formData = new FormData();
-            formData.append('link', link);
-
             const evtSource = new EventSource('/status/' + encodeURIComponent(link));
-            let currentStep = 0;
 
             evtSource.addEventListener('step', function(e) {
                 const data = JSON.parse(e.data);
                 const idx = STEPS.findIndex(s => s.id === data.step);
                 if (idx >= 0) {
-                    currentStep = idx;
                     renderSteps(idx);
                     const pct = Math.min(((idx + 1) / STEPS.length) * 100, 95);
                     progressEl.style.width = pct + '%';
@@ -507,9 +511,9 @@ def fetch_via_freedium(url, job_id=None):
 
 def fetch_via_archive_org(url, job_id=None):
     set_step(job_id, 'fallback_org')
-    wayback_api = f"https://archive.org/wayback/available?url={url}"
+    wayback_api = "https://archive.org/wayback/available"
     try:
-        meta = requests.get(wayback_api, timeout=15).json()
+        meta = requests.get(wayback_api, params={"url": url}, timeout=15).json()
         snapshot = meta.get("archived_snapshots", {}).get("closest", {})
         if not snapshot.get("available"):
             return None, None
@@ -517,7 +521,6 @@ def fetch_via_archive_org(url, job_id=None):
         if archived_url.startswith("http://"):
             archived_url = "https://" + archived_url[len("http://"):]
         if "/web/" in archived_url and "id_/" not in archived_url:
-            archived_url = archived_url.replace("/web/", "/web/", 1)
             archived_url = archived_url.replace(
                 archived_url.split("/web/")[1].split("/")[0],
                 archived_url.split("/web/")[1].split("/")[0] + "id_",
@@ -535,7 +538,7 @@ def fetch_via_archive_ph(url, job_id=None):
     set_step(job_id, 'fallback_ph')
     for mirror in ARCHIVE_PH_MIRRORS:
         try:
-            newest_url = f"https://{mirror}/newest/{url}"
+            newest_url = f"https://{mirror}/newest/{quote(url, safe=':/')}"
             resp = requests.get(
                 newest_url,
                 headers=REAL_BROWSER_HEADERS,
@@ -593,32 +596,18 @@ def bypass_paywall(url, job_id=None):
     if not html_text or is_challenge_page(html_text):
         recovered = False
 
-        if not medium:
-            archived_html, archived_url = fetch_via_archive_org(url, job_id)
+        archived_html, archived_url = fetch_via_archive_org(url, job_id)
+        if archived_html and not is_challenge_page(archived_html):
+            html_text = archived_html
+            final_url = archived_url
+            recovered = True
+
+        if not recovered:
+            archived_html, archived_url = fetch_via_archive_ph(url, job_id)
             if archived_html and not is_challenge_page(archived_html):
                 html_text = archived_html
                 final_url = archived_url
                 recovered = True
-
-            if not recovered:
-                archived_html, archived_url = fetch_via_archive_ph(url, job_id)
-                if archived_html and not is_challenge_page(archived_html):
-                    html_text = archived_html
-                    final_url = archived_url
-                    recovered = True
-        else:
-            archived_html, archived_url = fetch_via_archive_org(url, job_id)
-            if archived_html and not is_challenge_page(archived_html):
-                html_text = archived_html
-                final_url = archived_url
-                recovered = True
-
-            if not recovered:
-                archived_html, archived_url = fetch_via_archive_ph(url, job_id)
-                if archived_html and not is_challenge_page(archived_html):
-                    html_text = archived_html
-                    final_url = archived_url
-                    recovered = True
 
         if not recovered:
             if medium:
@@ -645,23 +634,29 @@ def bypass_paywall(url, job_id=None):
 def fetch_worker(job_id, url):
     try:
         result = bypass_paywall(url, job_id)
-        jobs[job_id]['result'] = result
-        jobs[job_id]['step'] = 'done'
+        with jobs_lock:
+            jobs[job_id]['result'] = result
+            jobs[job_id]['step'] = 'done'
     except requests.exceptions.Timeout:
-        jobs[job_id]['error'] = 'The website took too long to respond (30s timeout). Try again later.'
-        jobs[job_id]['step'] = 'error'
+        with jobs_lock:
+            jobs[job_id]['error'] = 'The website took too long to respond (30s timeout). Try again later.'
+            jobs[job_id]['step'] = 'error'
     except requests.exceptions.ConnectionError:
-        jobs[job_id]['error'] = 'Could not connect to the website. Check the URL and try again.'
-        jobs[job_id]['step'] = 'error'
+        with jobs_lock:
+            jobs[job_id]['error'] = 'Could not connect to the website. Check the URL and try again.'
+            jobs[job_id]['step'] = 'error'
     except requests.exceptions.RequestException as e:
-        jobs[job_id]['error'] = f'Failed to fetch the page: {e}'
-        jobs[job_id]['step'] = 'error'
+        with jobs_lock:
+            jobs[job_id]['error'] = f'Failed to fetch the page: {e}'
+            jobs[job_id]['step'] = 'error'
     except RuntimeError as e:
-        jobs[job_id]['error'] = str(e)
-        jobs[job_id]['step'] = 'error'
+        with jobs_lock:
+            jobs[job_id]['error'] = str(e)
+            jobs[job_id]['step'] = 'error'
     except Exception as e:
-        jobs[job_id]['error'] = f'Unexpected error: {e}'
-        jobs[job_id]['step'] = 'error'
+        with jobs_lock:
+            jobs[job_id]['error'] = f'Unexpected error: {e}'
+            jobs[job_id]['step'] = 'error'
 
 
 @app.route("/")
@@ -674,7 +669,8 @@ def status_stream(url):
     import json
 
     job_id = str(uuid.uuid4())
-    jobs[job_id] = {'step': 'queued', 'result': None, 'error': None}
+    with jobs_lock:
+        jobs[job_id] = {'step': 'queued', 'result': None, 'error': None}
 
     thread = threading.Thread(target=fetch_worker, args=(job_id, url))
     thread.daemon = True
@@ -682,27 +678,30 @@ def status_stream(url):
 
     def generate():
         last_step = None
-        while True:
-            job = jobs.get(job_id)
-            if not job:
-                break
-
-            current = job['step']
-            if current != last_step:
-                last_step = current
-                if current == 'done':
-                    yield f"event: step\ndata: {json.dumps({'step': 'done'})}\n\n"
-                    yield f"event: done\ndata: {json.dumps({'html': job['result']})}\n\n"
+        try:
+            while True:
+                with jobs_lock:
+                    job = dict(jobs[job_id]) if job_id in jobs else None
+                if not job:
                     break
-                elif current == 'error':
-                    yield f"event: error_msg\ndata: {json.dumps({'message': job['error']})}\n\n"
-                    break
-                else:
-                    yield f"event: step\ndata: {json.dumps({'step': current})}\n\n"
 
-            time.sleep(0.2)
+                current = job['step']
+                if current != last_step:
+                    last_step = current
+                    if current == 'done':
+                        yield f"event: step\ndata: {json.dumps({'step': 'done'})}\n\n"
+                        yield f"event: done\ndata: {json.dumps({'html': job['result']})}\n\n"
+                        break
+                    elif current == 'error':
+                        yield f"event: error_msg\ndata: {json.dumps({'message': job['error']})}\n\n"
+                        break
+                    else:
+                        yield f"event: step\ndata: {json.dumps({'step': current})}\n\n"
 
-        jobs.pop(job_id, None)
+                time.sleep(0.2)
+        finally:
+            with jobs_lock:
+                jobs.pop(job_id, None)
 
     return Response(generate(), mimetype='text/event-stream',
                     headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
