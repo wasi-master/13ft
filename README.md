@@ -1,5 +1,8 @@
 # 13 Feet Ladder
 
+<img src="https://raw.githubusercontent.com/wasi-master/13ft/refs/heads/main/logo.png" align="right"
+     alt="Size Limit logo by Anton Lovchikov" width="120" height="178">
+
 A site similar to [12ft.io](https://12ft.io) but is self hosted and works with websites that 12ft.io doesn't work with.
 
 ## What is this?
@@ -190,3 +193,7 @@ Voilà you now have bypassed the paywall and ads
 You can also append the url at the end of the link and it will also work. (e.g if your server is running at `http://127.0.0.1:5000` then you can go to `http://127.0.0.1:5000/https://example.com` and it will read out the contents of `https://example.com`)
 
 This feature was implemented by [@atcasanova](https://github.com/atcasanova)
+
+### Logo attribution
+
+Logo courtesy of [@mcmikemn](https://github.com/mcmikemn)
