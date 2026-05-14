@@ -1,0 +1,20 @@
+{
+  "version": 2,
+  "buildCommand": "pip install -r requirements.txt",
+  "env": {
+    "PYTHONUNBUFFERED": "1"
+  },
+  "functions": {
+    "api/index.py": {
+      "runtime": "python3.12",
+      "memory": 3008,
+      "maxDuration": 60
+    }
+  },
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/api/index.py"
+    }
+  ]
+}

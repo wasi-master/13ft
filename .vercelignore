@@ -1,0 +1,8 @@
+.git
+.gitignore
+README.md
+screenshots/
+docker-compose*.yaml
+Dockerfile
+.env.local
+.env.*.local
