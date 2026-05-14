@@ -7,7 +7,7 @@ import uuid
 import threading
 import time
 from functools import lru_cache
-from urllib.parse import urljoin, urlparse, quote
+from urllib.parse import urljoin, urlparse, quote, unquote
 from flask import request, Response
 from bs4 import BeautifulSoup
 
@@ -435,7 +435,7 @@ html = """
                 elapsedEl.textContent = UI_STRINGS.elapsed_template.replace('{seconds}', sec);
             }, 500);
 
-            const evtSource = new EventSource('/status/' + encodeURIComponent(link));
+            const evtSource = new EventSource('/status?url=' + encodeURIComponent(link));
 
             evtSource.addEventListener('step', function(e) {
                 const data = JSON.parse(e.data);
@@ -752,8 +752,14 @@ def main_page():
     return render_main_page()
 
 
-@app.route("/status/<path:url>")
-def status_stream(url):
+@app.route("/status")
+def status_stream():
+    raw_url = request.args.get("url", "")
+    url = unquote(raw_url)
+
+    if not url:
+        return "Missing URL", 400
+
     strings = load_strings()
     job_id = str(uuid.uuid4())
     with jobs_lock:
