@@ -510,15 +510,19 @@ def render_main_page():
     )
 
 
-def add_base_tag(html_content, original_url):
+def process_html_document(html_content, original_url):
+    """
+    Parses HTML, injects the <base> tag to fix relative links, and applies
+    site-specific modifications (like stripping paywall JS) where needed.
+    """
     soup = BeautifulSoup(html_content, "html.parser")
     parsed_url = urlparse(original_url)
     base_url = f"{parsed_url.scheme}://{parsed_url.netloc}/"
 
-
     # Handle paths that are not root, e.g., "https://x.com/some/path/w.html"
     if parsed_url.path and not parsed_url.path.endswith("/"):
         base_url = urljoin(base_url, parsed_url.path.rsplit("/", 1)[0] + "/")
+
     base_tag = soup.find("base")
     if not base_tag:
         new_base_tag = soup.new_tag("base", href=base_url)
@@ -528,6 +532,23 @@ def add_base_tag(html_content, original_url):
             head_tag = soup.new_tag("head")
             head_tag.insert(0, new_base_tag)
             soup.insert(0, head_tag)
+
+    domain = parsed_url.netloc.lower()
+
+    # --- SITE SPECIFIC FIXES ---
+
+    # The Seattle Times
+    if "seattletimes.com" in domain:
+        # Seattle Times uses specific JS bundles to trigger the paywall modal and ads.
+        # Removing these scripts prevents the paywall from locking the screen.
+        for script in soup.find_all("script", src=True):
+            if "st-user-messaging" in script["src"] or "st-advertising" in script["src"]:
+                script.decompose()
+
+        # Ensure the body isn't locked from scrolling by JS-injected inline styles
+        if soup.body:
+            current_style = soup.body.get("style", "")
+            soup.body["style"] = f"{current_style}; overflow: auto !important; position: static !important;"
 
     return str(soup)
 
@@ -678,7 +699,7 @@ def bypass_paywall(url, strings, job_id=None):
         freedium_html, freedium_final = fetch_via_freedium(url, job_id)
         if freedium_html:
             set_step(job_id, 'process')
-            result = add_base_tag(freedium_html, freedium_final)
+            result = process_html_document(freedium_html, freedium_final)
             set_step(job_id, 'cleanup')
             return result
     else:
@@ -713,7 +734,7 @@ def bypass_paywall(url, strings, job_id=None):
             raise UserFacingError(msg)
 
     set_step(job_id, 'process')
-    result = add_base_tag(html_text, final_url)
+    result = process_html_document(html_text, final_url)
 
     set_step(job_id, 'cleanup')
     return result
