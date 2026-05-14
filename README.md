@@ -5,7 +5,7 @@
 
 ![build](https://github.com/wasi-master/13ft/actions/workflows/build.yaml/badge.svg)
 [![Docker Pulls](https://img.shields.io/docker/pulls/wasimaster/13ft)](https://hub.docker.com/r/wasimaster/13ft)
-[![runs](https://img.shields.io/badge/dynamic/json?url=https://github.com/wasi-master/13ft/raw/index/13ft/13ft/13ft.json&query=$.downloads&logo=github&logoColor=959da5&label=ghcr%20pulls&labelColor=333a41)](https://github.com/wasi-master/13ft/pkgs/container/13ft)
+[![runs](https://img.shields.io/badge/dynamic/json?url=https://github.com/ipitio/backage/raw/refs/heads/index/wasi-master/13ft/13ft.json&query=$.downloads&logo=github&logoColor=959da5&label=ghcr%20pulls&labelColor=333a41)](https://github.com/wasi-master/13ft/pkgs/container/13ft)
 
 A site similar to [12ft.io](https://12ft.io) but is self hosted and works with websites that 12ft.io doesn't work with.
 
