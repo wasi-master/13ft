@@ -242,10 +242,5 @@ External HTTP calls are mocked; the tests do not contact article sites or archiv
 Coverage includes routes, error responses, localization, HTML processing, cache expiry,
 archive fallbacks, and server-sent progress events. This does not validate live third-party availability.
 
-The Gitea workflow runs the suite inside the built image before deployment:
-
-```sh
-docker compose -p thirteen-ft -f docker-compose.dev.yaml run --rm --no-deps 13ft python -m unittest discover -s /tests -v
-```
-
-A test failure stops the workflow before the deployment step.
+The GitHub Actions build workflow (`.github/workflows/build.yaml`) runs the suite with pytest on every push
+and pull request, before the Docker image is built. A test failure stops the workflow before anything is pushed.
