@@ -227,3 +227,25 @@ This feature was implemented by [@atcasanova](https://github.com/atcasanova)
 ### Logo attribution
 
 Logo courtesy of [@mcmikemn](https://github.com/mcmikemn)
+
+## Automated tests
+
+From the repository root, install the application dependencies and run:
+
+```sh
+python -m pip install -r requirements.txt
+python -m unittest discover -s tests -v
+```
+
+The suite uses Python's standard-library `unittest` and Flask's test client.
+External HTTP calls are mocked; the tests do not contact article sites or archive services.
+Coverage includes routes, error responses, localization, HTML processing, cache expiry,
+archive fallbacks, and server-sent progress events. This does not validate live third-party availability.
+
+The Gitea workflow runs the suite inside the built image before deployment:
+
+```sh
+docker compose -p thirteen-ft -f docker-compose.dev.yaml run --rm --no-deps 13ft python -m unittest discover -s /tests -v
+```
+
+A test failure stops the workflow before the deployment step.
