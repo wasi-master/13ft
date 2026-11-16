@@ -75,6 +75,10 @@ python -m pip install -r requirements.txt
 FLASK_APP=app/portable.py flask run --host=127.0.0.1 --port=9982
 ```
 
+## One-Click Deploy
+
+[![Deploy on RepoCloud](https://d16t0pc4846x52.cloudfront.net/deploylobe.svg)](https://repocloud.io/details/13ft/)
+
 ## Using as a Bookmarklet in Chrome:
 
 You can create a bookmarklet that performs the URL transformation by writing a small JavaScript snippet. Below is the JavaScript code for your bookmarklet:
