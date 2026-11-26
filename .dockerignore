@@ -1,0 +1,7 @@
+app/venv
+**/__pycache__
+*.bak
+*.old
+*.old1
+*.tmp.bak
+.git

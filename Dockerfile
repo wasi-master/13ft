@@ -1,37 +1,33 @@
 # syntax=docker/dockerfile:1
-FROM python:3.13.7-alpine
+FROM python:3.13.7-slim
 
 ARG UID=1000
 ARG GID=1000
 
-RUN addgroup -g $GID thirteener
-RUN adduser -D -g '' -u $UID -G thirteener thirteener
+RUN groupadd -g $GID thirteener && useradd -u $UID -g $GID -m thirteener
 
-# Generic labels
-LABEL maintainer="Arian Mollik Wasi <arianmollik323@gmail.com>"
-LABEL version="0.3.4"
-LABEL description="My own custom 12ft.io replacement"
-LABEL url="https://github.com/wasi-master/13ft/"
-LABEL documentation="https://github.com/wasi-master/13ft/blob/main/README.md"
-
-# OCI compliant labels
-LABEL org.opencontainers.image.source="https://github.com/wasi-master/13ft"
-LABEL org.opencontainers.image.authors="Arian Mollik Wasi"
-LABEL org.opencontainers.image.created="2023-10-31T22:53:00Z"
-LABEL org.opencontainers.image.version="0.3.4"
-LABEL org.opencontainers.image.url="https://github.com/wasi-master/13ft/"
-LABEL org.opencontainers.image.source="https://github.com/wasi-master/13ft/"
-LABEL org.opencontainers.image.description="My own custom 12ft.io replacement"
-LABEL org.opencontainers.image.documentation="https://github.com/wasi-master/13ft/blob/main/README.md"
-LABEL org.opencontainers.image.licenses=MIT
-
-RUN python -m pip install --upgrade pip
-
-USER thirteener
-COPY . .
-RUN --mount=type=cache,mode=0755,target=/home/thirteener/.cache/pip \
-  pip install -U -r requirements.txt
+LABEL maintainer="Arian Mollik Wasi <arianmollik323@gmail.com>" \
+      org.opencontainers.image.source="https://github.com/wasi-master/13ft" \
+      org.opencontainers.image.version="0.3.4"
 
 WORKDIR /app
+
+# Copy requirements first to leverage Docker layer caching
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -U -r requirements.txt
+
+# Copy the rest of the app (app/ and api/ end up under /app)
+COPY app ./app
+COPY api ./api
+
+USER thirteener
+
 EXPOSE 5000
-CMD [ "python", "-m", "gunicorn", "portable:app" ]
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/', timeout=3)" || exit 1
+
+WORKDIR /app/app
+
+CMD ["python", "-m", "gunicorn", "-c", "gunicorn.conf.py", "--timeout", "120", "--threads", "8", "portable:app"]

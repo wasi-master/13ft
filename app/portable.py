@@ -1,17 +1,40 @@
+"""
+13ft Ladder - Article Fetcher Service
+A production-ready paywall bypass service with proper error handling,
+thread-safety, and caching.
+"""
+
 import json
 import os
-import flask
+import logging
 import re
-import requests
-import uuid
-import threading
 import time
-from functools import lru_cache
-from urllib.parse import urljoin, urlparse, quote, unquote
-from flask import request, Response
+import threading
+import uuid
+from contextlib import ExitStack
+from urllib.parse import urlparse, urljoin, urlunparse, quote, unquote
+
+import flask
+import requests
 from bs4 import BeautifulSoup
+from requests.adapters import HTTPAdapter, Retry
+
+# =============================================================================
+# CONFIGURATION & LOGGING
+# =============================================================================
 
 app = flask.Flask(__name__)
+
+# Production logging setup
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+)
+logger = logging.getLogger(__name__)
+
+# =============================================================================
+# LOCALIZATION
+# =============================================================================
 
 _DEFAULT_STRINGS = {
     "heading": "Enter Website Link",
@@ -57,8 +80,31 @@ def get_locale():
     return locale
 
 
-@lru_cache(maxsize=None)
-def load_strings_for_locale(locale):
+class ThreadLocalStrings:
+    """Thread-local cache for locale strings to avoid repeated lookups."""
+
+    def __init__(self):
+        self._cache = threading.local()
+        self._lock = threading.Lock()
+
+    def get(self):
+        if not hasattr(self._cache, 'strings') or self._cache.strings is None:
+            with self._lock:
+                if not hasattr(self._cache, 'strings') or self._cache.strings is None:
+                    self._cache.strings = _load_strings_for_locale(get_locale())
+        return self._cache.strings
+
+    def invalidate(self):
+        """Clear cache on locale change."""
+        if hasattr(self._cache, 'strings'):
+            del self._cache.strings
+
+
+_locale_strings = ThreadLocalStrings()
+
+
+def _load_strings_for_locale(locale):
+    """Load strings from locale file or use defaults."""
     strings = dict(_DEFAULT_STRINGS)
     locale_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "locales")
     locale_file = os.path.join(locale_dir, f"{locale}.json")
@@ -68,7 +114,6 @@ def load_strings_for_locale(locale):
             with open(locale_file, "r", encoding="utf-8") as file:
                 strings.update(json.load(file))
         except (FileNotFoundError, json.JSONDecodeError, OSError):
-            strings = dict(_DEFAULT_STRINGS)
             locale = "en"
 
     strings["lang"] = locale
@@ -76,21 +121,30 @@ def load_strings_for_locale(locale):
 
 
 def load_strings():
-    return dict(load_strings_for_locale(get_locale()))
+    return _locale_strings.get()
 
 
 googlebot_headers = {
     "User-Agent": "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.6533.119 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
 }
 
+# =============================================================================
+# THREAD-SAFE STATE & LOCKS
+# =============================================================================
+
 jobs = {}
 jobs_lock = threading.Lock()
+
+page_cache = {}
+page_cache_lock = threading.Lock()
+PAGE_CACHE_TTL = 300  # 5 minutes
 
 
 class UserFacingError(Exception):
     def __init__(self, user_message):
         super().__init__(user_message)
         self.user_message = user_message
+
 
 html = """
 <!DOCTYPE html>
@@ -101,6 +155,7 @@ html = """
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <title>13ft Ladder</title>
+    <link rel="icon" href="/favicon.ico" type="image/png">
     <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600&display=swap" rel="stylesheet" async>
     <style>
         * { box-sizing: border-box; }
@@ -162,35 +217,103 @@ html = """
             right: 10px;
         }
 
-        .dark-mode-toggle input { display: none; }
+        .dark-mode-toggle input {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
 
         .dark-mode-toggle label {
             cursor: pointer;
-            text-indent: -9999px;
-            width: 52px;
-            height: 27px;
-            background: grey;
+            width: 54px;
+            height: 28px;
+            background: #cbd5e1;
             display: block;
             border-radius: 100px;
             position: relative;
+            transition: background-color 0.3s, border-color 0.3s;
+            border: 1px solid #b8c2cc;
         }
 
-        .dark-mode-toggle label:after {
-            content: '';
+        .dark-mode-toggle label:hover {
+            background: #b8c2cc;
+            border-color: #a1b0be;
+        }
+
+        .dark-mode-toggle input:focus-visible + label {
+            outline: 2px solid #a327f0;
+            outline-offset: 3px;
+        }
+
+        body.dark-mode .dark-mode-toggle input:focus-visible + label {
+            outline-color: #7359f8;
+        }
+
+        .dark-mode-toggle .thumb {
             position: absolute;
             top: 2px;
             left: 2px;
-            width: 23px;
-            height: 23px;
+            width: 22px;
+            height: 22px;
             background: #fff;
-            border-radius: 90px;
-            transition: 0.3s;
+            border-radius: 50%;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.3s, box-shadow 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
         }
 
-        .dark-mode-toggle input:checked+label { background: #7359f8; }
-        .dark-mode-toggle input:checked+label:after {
-            left: calc(100% - 2px);
-            transform: translateX(-100%);
+        .dark-mode-toggle input:checked+label {
+            background: #312e81;
+            border-color: #4338ca;
+        }
+
+        .dark-mode-toggle input:checked+label:hover {
+            background: #2e2a78;
+            border-color: #3b379d;
+        }
+
+        .dark-mode-toggle input:checked+label .thumb {
+            transform: translateX(26px);
+            background: #1e1b4b;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 0 8px rgba(99, 102, 241, 0.4);
+        }
+
+        .dark-mode-toggle .icon {
+            position: absolute;
+            width: 14px;
+            height: 14px;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+        }
+
+        .dark-mode-toggle .icon.sun {
+            color: #ea580c;
+            opacity: 1;
+            transform: scale(1) rotate(0deg);
+        }
+
+        .dark-mode-toggle .icon.moon {
+            color: #4f46e5;
+            opacity: 0;
+            transform: scale(0) rotate(-90deg);
+        }
+
+        .dark-mode-toggle input:checked+label .icon.sun {
+            opacity: 0;
+            transform: scale(0) rotate(90deg);
+        }
+
+        .dark-mode-toggle input:checked+label .icon.moon {
+            color: #c7d2fe;
+            opacity: 1;
+            transform: scale(1) rotate(0deg);
         }
 
         @media only screen and (max-width: 600px) {
@@ -209,7 +332,6 @@ html = """
         body.dark-mode .step.done { color: #7359f8; }
         body.dark-mode .error-box { background: #3a1c1c; border-color: #ff6b6b; color: #ffaaaa; }
 
-        /* Status page styles */
         .status-container {
             max-width: 480px;
             width: 100%;
@@ -324,7 +446,24 @@ html = """
 <body>
     <div class="dark-mode-toggle">
         <input type="checkbox" id="dark-mode-toggle">
-        <label for="dark-mode-toggle" title="{{ toggle_dark_mode }}"></label>
+        <label for="dark-mode-toggle" title="{{ toggle_dark_mode }}">
+            <span class="thumb">
+                <svg class="icon sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="5"></circle>
+                    <line x1="12" y1="1" x2="12" y2="3"></line>
+                    <line x1="12" y1="21" x2="12" y2="23"></line>
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                    <line x1="1" y1="12" x2="3" y2="12"></line>
+                    <line x1="21" y1="12" x2="23" y2="12"></line>
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                </svg>
+                <svg class="icon moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                </svg>
+            </span>
+        </label>
     </div>
 
     <div id="form-view">
@@ -445,19 +584,15 @@ html = """
                     const pct = Math.min(((idx + 1) / STEPS.length) * 100, 95);
                     progressEl.style.width = pct + '%';
                 }
-            });
-
-            evtSource.addEventListener('done', function(e) {
-                evtSource.close();
-                clearInterval(timer);
-                renderSteps(STEPS.length);
-                progressEl.style.width = '100%';
-                const data = JSON.parse(e.data);
-                setTimeout(() => {
-                    document.open();
-                    document.write(data.html);
-                    document.close();
-                }, 400);
+                if (data.redirect) {
+                    evtSource.close();
+                    clearInterval(timer);
+                    renderSteps(STEPS.length);
+                    progressEl.style.width = '100%';
+                    setTimeout(() => {
+                        window.location.href = data.redirect;
+                    }, 400);
+                }
             });
 
             evtSource.addEventListener('error_msg', function(e) {
@@ -472,6 +607,14 @@ html = """
                 clearInterval(timer);
                 showError(UI_STRINGS.connection_lost_error);
             };
+        });
+
+        window.addEventListener('pageshow', function(event) {
+            if (event.persisted) {
+                document.getElementById('form-view').style.display = '';
+                document.getElementById('status-view').style.display = 'none';
+                document.getElementById('link').value = '';
+            }
         });
     </script>
 </body>
@@ -510,21 +653,64 @@ def render_main_page():
     )
 
 
+# =============================================================================
+# HTML PROCESSING
+# =============================================================================
+
+def normalize_base_url(url):
+    """Return a base URL for resolving relative links."""
+    try:
+        parsed = urlparse(url)
+        # Normalize to https://domain/ or https://domain/path/
+        base = f"{parsed.scheme or 'https'}://{parsed.netloc}/"
+        if parsed.path and not parsed.path.endswith("/"):
+            base = urljoin(base, parsed.path.rsplit("/", 1)[0] + "/")
+        return base
+    except Exception:
+        return "https://" + url
+
+
+def make_absolute(soup, base_url):
+    """Resolve all relative URLs in an HTML document."""
+    for tag in soup.find_all(href=True):
+        href = tag.get("href", "")
+        if href and not href.startswith(("http://", "https://", "#", "mailto:")):
+            tag["href"] = urljoin(base_url, href)
+    for tag in soup.find_all(src=True):
+        src = tag.get("src", "")
+        if src and not src.startswith(("http://", "https://", "#")):
+            tag["src"] = urljoin(base_url, src)
+    return soup
+
+
+def proxify_links(soup, base_url):
+    """Rewrite <a href> links so they route back through this proxy
+    (/https://target/path) instead of sending the browser to the origin site.
+    Assets (src, stylesheets) stay absolute/direct via the <base> tag."""
+    skip = ("#", "mailto:", "tel:", "javascript:", "data:", "sms:")
+    for tag in soup.find_all("a", href=True):
+        href = (tag.get("href") or "").strip()
+        if not href or href.lower().startswith(skip):
+            continue
+        absolute = urljoin(base_url, href)
+        if urlparse(absolute).scheme in ("http", "https"):
+            tag["href"] = "/" + absolute
+    return soup
+
+
 def process_html_document(html_content, original_url):
     """
     Parses HTML, injects the <base> tag to fix relative links, and applies
     site-specific modifications (like stripping paywall JS) where needed.
     """
     soup = BeautifulSoup(html_content, "html.parser")
-    parsed_url = urlparse(original_url)
-    base_url = f"{parsed_url.scheme}://{parsed_url.netloc}/"
+    base_url = normalize_base_url(original_url)
 
-    # Handle paths that are not root, e.g., "https://x.com/some/path/w.html"
-    if parsed_url.path and not parsed_url.path.endswith("/"):
-        base_url = urljoin(base_url, parsed_url.path.rsplit("/", 1)[0] + "/")
-
+    # Handle <base> tag
     base_tag = soup.find("base")
-    if not base_tag:
+    if base_tag:
+        base_tag["href"] = base_url
+    else:
         new_base_tag = soup.new_tag("base", href=base_url)
         if soup.head:
             soup.head.insert(0, new_base_tag)
@@ -533,25 +719,45 @@ def process_html_document(html_content, original_url):
             head_tag.insert(0, new_base_tag)
             soup.insert(0, head_tag)
 
-    domain = parsed_url.netloc.lower()
+    proxify_links(soup, base_url)
 
-    # --- SITE SPECIFIC FIXES ---
+    domain = urlparse(original_url).netloc.lower()
 
-    # The Seattle Times
+    # Strip anti-hotlinking and frame-busting scripts
+    for script in soup.find_all("script", src=False):
+        content = script.get_text()
+        if "location.hostname" in content and ("location.href" in content or "location.replace" in content):
+            script.decompose()
+        elif "top.location" in content or "window.top" in content:
+            script.decompose()
+
+    # Seattle Times specific fixes
     if "seattletimes.com" in domain:
-        # Seattle Times uses specific JS bundles to trigger the paywall modal and ads.
-        # Removing these scripts prevents the paywall from locking the screen.
         for script in soup.find_all("script", src=True):
             if "st-user-messaging" in script["src"] or "st-advertising" in script["src"]:
                 script.decompose()
-
-        # Ensure the body isn't locked from scrolling by JS-injected inline styles
         if soup.body:
             current_style = soup.body.get("style", "")
             soup.body["style"] = f"{current_style}; overflow: auto !important; position: static !important;"
 
+    # Remove favicons from source and add our own
+    for link_tag in soup.find_all("link", rel=lambda r: r and any(
+            v.lower() in ("icon", "shortcut icon", "apple-touch-icon",
+                          "apple-touch-icon-precomposed", "mask-icon")
+            for v in (r if isinstance(r, list) else [r])
+    )):
+        link_tag.decompose()
+
+    favicon_tag = soup.new_tag("link", rel="icon", href="/favicon.ico", type="image/png")
+    if soup.head:
+        soup.head.append(favicon_tag)
+
     return str(soup)
 
+
+# =============================================================================
+# CHALLENGE DETECTION
+# =============================================================================
 
 CHALLENGE_SIGNATURES = [
     "just a moment",
@@ -562,6 +768,11 @@ CHALLENGE_SIGNATURES = [
     "attention required",
     "enable javascript and cookies to continue",
     "please verify you are a human",
+    "_incapsula_resource",
+    "incapsula incident",
+    "request unsuccessful",
+    "datadome",
+    "enable js and disable any ad blocker",
 ]
 
 
@@ -575,20 +786,32 @@ def is_challenge_page(html_text):
     return hits >= 2
 
 
-def set_step(job_id, step):
-    if job_id and job_id in jobs:
-        jobs[job_id]['step'] = step
+# =============================================================================
+# REQUEST SESSION (with retry logic)
+# =============================================================================
+
+session = requests.Session()
+
+def create_adapter():
+    retry = Retry(
+        total=5,
+        backoff_factor=0.5,
+        status_forcelist=[500, 502, 503, 504],
+        allowed_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    return adapter
+
+session.mount("https://", create_adapter())
+session.mount("http://", create_adapter())
 
 
-REAL_BROWSER_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
-}
-
-ARCHIVE_PH_MIRRORS = ["archive.ph", "archive.today", "archive.is", "archive.li"]
+# =============================================================================
+# FETCH FUNCTIONS
+# =============================================================================
 
 FREEDIUM_MIRRORS = ["freedium-mirror.cfd", "freedium.cfd"]
+ARCHIVE_PH_MIRRORS = ["archive.ph", "archive.today", "archive.is", "archive.li"]
 
 
 def is_medium_url(url):
@@ -601,14 +824,15 @@ def is_medium_url(url):
 
 def fetch_via_freedium(url, job_id=None):
     """Freedium is a Medium-specific paywall bypass service."""
+    logger.info(f"Trying Freedium for: {url}")
     set_step(job_id, 'fallback_freedium')
     clean_url = url.split('?')[0]
     for mirror in FREEDIUM_MIRRORS:
         try:
             freedium_url = f"https://{mirror}/{clean_url}"
-            resp = requests.get(
+            resp = session.get(
                 freedium_url,
-                headers=REAL_BROWSER_HEADERS,
+                headers=googlebot_headers,
                 timeout=30,
                 allow_redirects=True,
             )
@@ -626,11 +850,24 @@ def fetch_via_freedium(url, job_id=None):
     return None, None
 
 
+def set_step(job_id, step):
+    with jobs_lock:
+        if job_id and job_id in jobs:
+            jobs[job_id]['step'] = step
+
+
+REAL_BROWSER_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+}
+
+
 def fetch_via_archive_org(url, job_id=None):
     set_step(job_id, 'fallback_org')
     wayback_api = "https://archive.org/wayback/available"
     try:
-        meta = requests.get(wayback_api, params={"url": url}, timeout=15).json()
+        meta = session.get(wayback_api, params={"url": url}, timeout=15).json()
         snapshot = meta.get("archived_snapshots", {}).get("closest", {})
         if not snapshot.get("available"):
             return None, None
@@ -643,7 +880,7 @@ def fetch_via_archive_org(url, job_id=None):
                 archived_url.split("/web/")[1].split("/")[0] + "id_",
                 1,
             )
-        resp = requests.get(archived_url, headers=googlebot_headers, timeout=30)
+        resp = session.get(archived_url, headers=googlebot_headers, timeout=30)
         resp.encoding = resp.apparent_encoding
         return resp.text, resp.url
     except Exception:
@@ -656,7 +893,7 @@ def fetch_via_archive_ph(url, job_id=None):
     for mirror in ARCHIVE_PH_MIRRORS:
         try:
             newest_url = f"https://{mirror}/newest/{quote(url, safe=':/')}"
-            resp = requests.get(
+            resp = session.get(
                 newest_url,
                 headers=REAL_BROWSER_HEADERS,
                 timeout=20,
@@ -704,7 +941,7 @@ def bypass_paywall(url, strings, job_id=None):
             return result
     else:
         set_step(job_id, 'fetch')
-        response = requests.get(url, headers=googlebot_headers, timeout=30)
+        response = session.get(url, headers=googlebot_headers, timeout=30)
         response.encoding = response.apparent_encoding
         html_text = response.text
         final_url = response.url
@@ -740,11 +977,28 @@ def bypass_paywall(url, strings, job_id=None):
     return result
 
 
+def normalize_cache_url(url):
+    if "://" in url:
+        return "https://" + url.split("://", 1)[1]
+    return "https://" + url
+
+
+def clean_page_cache():
+    now = time.time()
+    expired = [k for k, v in page_cache.items() if now - v['timestamp'] > PAGE_CACHE_TTL]
+    for k in expired:
+        del page_cache[k]
+
+
 def fetch_worker(job_id, url, strings):
     try:
         result = bypass_paywall(url, strings, job_id)
+        cache_key = normalize_cache_url(url)
+        with page_cache_lock:
+            clean_page_cache()
+            page_cache[cache_key] = {'html': result, 'timestamp': time.time()}
         with jobs_lock:
-            jobs[job_id]['result'] = result
+            jobs[job_id]['result'] = cache_key
             jobs[job_id]['step'] = 'done'
     except requests.exceptions.Timeout:
         with jobs_lock:
@@ -762,10 +1016,22 @@ def fetch_worker(job_id, url, strings):
         with jobs_lock:
             jobs[job_id]['error'] = error.user_message
             jobs[job_id]['step'] = 'error'
-    except Exception as e:
+    except Exception:
+        logger.exception("Unexpected error fetching %s", url)
         with jobs_lock:
             jobs[job_id]['error'] = strings["unexpected_error"]
             jobs[job_id]['step'] = 'error'
+
+
+@app.route("/favicon.ico")
+def favicon():
+    logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "logo.png")
+    if os.path.exists(logo_path):
+        with open(logo_path, "rb") as f:
+            data = f.read()
+        return flask.Response(data, mimetype="image/png",
+                              headers={"Cache-Control": "public, max-age=86400"})
+    return "", 404
 
 
 @app.route("/")
@@ -775,7 +1041,7 @@ def main_page():
 
 @app.route("/status")
 def status_stream():
-    raw_url = request.args.get("url", "")
+    raw_url = flask.request.args.get("url", "")
     url = unquote(raw_url)
 
     if not url:
@@ -803,8 +1069,7 @@ def status_stream():
                 if current != last_step:
                     last_step = current
                     if current == 'done':
-                        yield f"event: step\ndata: {json.dumps({'step': 'done'})}\n\n"
-                        yield f"event: done\ndata: {json.dumps({'html': job['result']})}\n\n"
+                        yield f"event: step\ndata: {json.dumps({'step': 'done', 'redirect': '/' + job['result']})}\n\n"
                         break
                     elif current == 'error':
                         yield f"event: error_msg\ndata: {json.dumps({'message': job['error']})}\n\n"
@@ -817,7 +1082,7 @@ def status_stream():
             with jobs_lock:
                 jobs.pop(job_id, None)
 
-    return Response(generate(), mimetype='text/event-stream',
+    return flask.Response(generate(), mimetype='text/event-stream',
                     headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
 
 
@@ -836,6 +1101,7 @@ def show_article():
     except UserFacingError as error:
         return error.user_message, 400
     except Exception:
+        logger.exception("Unexpected error fetching page")
         return strings["unexpected_error"], 500
 
 
@@ -843,10 +1109,16 @@ def show_article():
 @app.route("/<path:path>", methods=["GET"])
 def get_article(path):
     strings = load_strings()
-    full_url = request.url
+    full_url = flask.request.url
     parts = full_url.split("/", 4)
     if len(parts) >= 5:
         actual_url = "https://" + parts[4].lstrip("/")
+
+        with page_cache_lock:
+            cached = page_cache.get(actual_url)
+        if cached:
+            return cached['html']
+
         try:
             return bypass_paywall(actual_url, strings)
         except requests.exceptions.Timeout:
